@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useMemo, useState, ReactNode, useEffect } from "react";
 import { loginApi, registerApi, type AuthUser } from "../api/auth";
-import { api } from "../api/http";
+
 
 
 export type UserRole = "teacher" | "student";
@@ -37,25 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(USER_KEY, JSON.stringify(u));
   };
 
-  async function login(email: string, password: string) {
-  const res = await api("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
-  const data = (res as any);
-  localStorage.setItem(TOKEN_KEY, data.token);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+async function login(email: string, password: string) {
+  const data = await loginApi(email, password); // { token, user }
+  persist(data.token, data.user);
 }
 
-  async function register(email: string, password: string, role: "teacher" | "student") {
-  const res = await api("/api/auth/register", {
-    method: "POST",
-    body: JSON.stringify({ email, password, role }),
-  });
-
-  const data = (res as any); 
-  localStorage.setItem(TOKEN_KEY, data.token);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+async function register(email: string, password: string, role: UserRole) {
+  const data = await registerApi(email, password, role); // { token, user }
+  persist(data.token, data.user);
 }
   const logout = () => {
     setToken(null);

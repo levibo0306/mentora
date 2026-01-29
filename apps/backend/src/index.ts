@@ -16,7 +16,7 @@ app.use(
     credentials: true,
   })
 );
-
+app.use(express.json());
 const metrics = { requests: 0, errors: 0, quizzesCreated: 0 };
 
 app.use((req, _res, next) => {
