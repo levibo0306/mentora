@@ -12,6 +12,16 @@ export async function api<T = any>(path: string, init: RequestInit = {}): Promis
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers, cache: "no-store" });
 
+  // 1. HA A SZERVER AZT MONDJA: "NEM VAGY BELÉPVE" (401)
+  if (res.status === 401) {
+    localStorage.removeItem("mentora_token");
+    localStorage.removeItem("mentora_user");
+    if (!window.location.pathname.includes("/login")) {
+        window.location.href = "/login";
+    }
+    throw new Error("Session expired");
+  }
+
   if (res.status === 204) return null as any;
 
   if (!res.ok) {

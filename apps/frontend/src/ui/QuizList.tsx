@@ -1,47 +1,126 @@
 import { useEffect, useState } from "react";
-import { api } from "../api/http";
+import { Link } from "react-router-dom"; 
+import { getQuizzes, Quiz, deleteQuiz } from "../api/quizzes";
 
-type Quiz = {
-  id: string;
-  title: string;
-  description: string;
-  questionCount?: number;
-};
+interface Props {
+  onEdit: (id: string) => void;
+}
 
-export function QuizList() {
+export const QuizList = ({ onEdit }: Props) => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  const fetchList = async () => {
+    try {
+      setLoading(true);
+      const data = await getQuizzes();
+      setQuizzes(data);
+    } catch (error) {
+      console.error("Nem sikerült betölteni a kvízeket", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Adatok lekérése
-    api<Quiz[]>("/api/quizzes")
-      .then((data) => {
-        setQuizzes(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setError("Nem sikerült betölteni a kvízeket.");
-        setLoading(false);
-      });
-  }, []); // Az üres array miatt csak mount-kor fut, DE mivel a szülőben változtatjuk a `key`-t, az egész komponens újratöltődik!
+    fetchList();
+  }, []);
 
-  if (loading) return <div style={{ color: "white" }}>Betöltés...</div>;
-  if (error) return <div style={{ color: "var(--danger)" }}>{error}</div>;
-  if (quizzes.length === 0) return <div style={{ color: "white", opacity: 0.8 }}>Még nincsenek kvízeid. Hozz létre egyet!</div>;
+  const handleDelete = async (id: string) => {
+    if (!confirm("Biztosan törölni szeretnéd ezt a kvízt?")) return;
+    try {
+      await deleteQuiz(id);
+      fetchList();
+    } catch (e) {
+      alert("Hiba a törlésnél");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '60px 20px',
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        Betöltés...
+      </div>
+    );
+  }
+  
+  if (quizzes.length === 0) {
+    return (
+      <div className="empty-state">
+        <div style={{ fontSize: '48px', marginBottom: '20px' }}>📚</div>
+        <p style={{ fontSize: '20px', fontWeight: '600', marginBottom: '10px' }}>
+          Még nincs kvízed
+        </p>
+        <p style={{ color: '#999' }}>
+          Kezdj el egyet létrehozni a fenti gombbal!
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.5rem" }}>
+    <div className="quiz-grid">
       {quizzes.map((quiz) => (
-        <div key={quiz.id} className="card" style={{ display: "flex", flexDirection: "column" }}>
-          <h3 style={{ color: "var(--secondary)", marginBottom: "0.5rem" }}>{quiz.title}</h3>
-          <p style={{ color: "#666", flexGrow: 1 }}>{quiz.description}</p>
-          <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #eee" }}>
-            <button className="btn-secondary" style={{ width: "100%" }}>Megnyitás</button>
+        <div key={quiz.id} className="quiz-card">
+          <div className="quiz-header">
+            <div>
+              <div className="difficulty-badge difficulty-medium">Medium</div>
+              <div className="quiz-title">{quiz.title}</div>
+              <div className="quiz-meta">{quiz.description || "Nincs leírás"}</div>
+            </div>
+          </div>
+          
+          <div className="quiz-body">
+            <div className="quiz-stats">
+              <div className="quiz-stat">
+                <div className="quiz-stat-value">?</div>
+                <div className="quiz-stat-label">Kérdések</div>
+              </div>
+              <div className="quiz-stat">
+                <div className="quiz-stat-value">0</div>
+                <div className="quiz-stat-label">Diákok</div>
+              </div>
+              <div className="quiz-stat">
+                <div className="quiz-stat-value">0</div>
+                <div className="quiz-stat-label">Próbák</div>
+              </div>
+            </div>
+            
+            <div className="quiz-actions">
+              <Link 
+                to={`/play/${quiz.id}`}
+                className="btn btn-primary"
+              >
+                ▶ Indítás
+              </Link>
+
+              <button 
+                onClick={() => onEdit(quiz.id)} 
+                className="btn btn-secondary"
+              >
+                Szerkesztés
+              </button>
+              
+              <button 
+                onClick={() => handleDelete(quiz.id)} 
+                className="btn btn-secondary"
+                style={{ 
+                  background: '#ffe6e6', 
+                  color: 'var(--danger)', 
+                  borderColor: 'var(--danger)' 
+                }}
+              >
+                Törlés
+              </button>
+            </div>
           </div>
         </div>
       ))}
     </div>
   );
-}
+};

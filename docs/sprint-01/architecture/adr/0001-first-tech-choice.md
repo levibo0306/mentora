@@ -8,7 +8,7 @@ A Mentora platform célja egy interaktív, valós idejű tanulás- és oktatást
 amely képes kezelni a kvízjátékokat, személyre szabott tanulási útvonalakat és AI-alapú kérdésgenerálást.
 
 ## Döntés
-A frontendhez **Next.js (React)** keretrendszert választok **TypeScript** támogatással, mivel kiválóan alkalmas dinamikus, interaktív felületek és valós idejű frissítések megvalósítására. A backend szolgáltatás **Node.js (Express)** alapokra épül, ami kompatibilis a websockets-alapú valós idejű kommunikációval, és jól integrálható AI API-kkal. Az adatokat **PostgreSQL** adatbázis tárolja, amely megbízható relációs struktúrát biztosít a felhasználók, kvízek és statisztikák számára.
+A frontendhez **Vite (React)** keretrendszert választok **TypeScript** támogatással, mivel kiválóan alkalmas dinamikus, interaktív felületek és valós idejű frissítések megvalósítására. A backend szolgáltatás **Node.js (Express)** alapokra épül, ami kompatibilis a websockets-alapú valós idejű kommunikációval, és jól integrálható AI API-kkal. Az adatokat **PostgreSQL** adatbázis tárolja, amely megbízható relációs struktúrát biztosít a felhasználók, kvízek és statisztikák számára.
 
 ## Megfontolt alternatívák
 - **SvelteKit + Supabase**: modern és gyors stack, de a valós idejű adatfrissítés nagyobb terhelésnél instabil,  

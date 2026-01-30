@@ -1,5 +1,7 @@
 import { api } from "./http";
-import type { UserRole } from "../context/AuthContext";
+
+// ITT DEFINIÁLJUK A TÍPUST
+export type UserRole = "teacher" | "student";
 
 export type AuthUser = {
   id: string;

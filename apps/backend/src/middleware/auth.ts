@@ -4,9 +4,7 @@ import { isTokenRevoked } from "../revokedTokens";
 
 export type JwtPayload = { sub: string; email: string; role: "teacher" | "student" };
 
-// EZ HIÁNYZOTT: Token létrehozása (aláírása)
 export function signToken(payload: JwtPayload) {
-  // 24 órás lejárattal készítjük a tokent
   return jwt.sign(payload, process.env.JWT_SECRET || "titkos-kulcs", { expiresIn: "24h" });
 }
 
@@ -19,10 +17,21 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET || "titkos-kulcs") as JwtPayload;
-    (req as any).auth = payload;
+    // JAVÍTÁS: req.auth helyett req.user használata
+    (req as any).user = payload; 
     (req as any).token = token;
     next();
   } catch {
     return res.status(401).json({ error: "Unauthorized" });
   }
+}
+
+// JAVÍTÁS: Hiányzó requireRole függvény hozzáadása
+export function requireRole(role: "teacher" | "student") {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).user as JwtPayload | undefined;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (user.role !== role) return res.status(403).json({ error: "Forbidden" });
+    next();
+  };
 }

@@ -1,88 +1,82 @@
-import React, { createContext, useContext, useMemo, useState, ReactNode, useEffect } from "react";
-import { loginApi, registerApi, type AuthUser } from "../api/auth";
-import { api } from "../api/http";
-
-
-export type UserRole = "teacher" | "student";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+// Importáljuk a típusokat és az API hívókat
+import { loginApi, registerApi, type AuthUser, type UserRole } from "../api/auth";
 
 type AuthContextType = {
   user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  // A login/register itt email/jelszót vár!
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => void;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({} as any);
 
-const TOKEN_KEY = "mentora_token";
-const USER_KEY = "mentora_user";
+export const useAuth = () => useContext(AuthContext);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Induláskor betöltjük a localStorage-ból
   useEffect(() => {
-    const t = localStorage.getItem(TOKEN_KEY);
-    const u = localStorage.getItem(USER_KEY);
-    if (t) setToken(t);
-    if (u) setUser(JSON.parse(u));
+    const storedToken = localStorage.getItem("mentora_token");
+    const storedUser = localStorage.getItem("mentora_user");
+
+    if (storedToken && storedUser) {
+      try {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Hibás user adat");
+        localStorage.removeItem("mentora_token");
+      }
+    }
+    setIsLoading(false);
   }, []);
 
-  const persist = (t: string, u: AuthUser) => {
-    setToken(t);
-    setUser(u);
-    localStorage.setItem(TOKEN_KEY, t);
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
+  // Segédfüggvény a mentéshez
+  const persist = (newToken: string, newUser: AuthUser) => {
+    setToken(newToken);
+    setUser(newUser);
+    localStorage.setItem("mentora_token", newToken);
+    localStorage.setItem("mentora_user", JSON.stringify(newUser));
   };
 
-async function login(email: string, password: string) {
-  const data = await api("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
+  // Login implementáció: API hívás -> Mentés
+  const login = async (email: string, password: string) => {
+    const data = await loginApi(email, password);
+    persist(data.token, data.user);
+  };
 
-  // api() már JSON-t ad vissza
-  persist(data.token, data.user);
-}
+  // Register implementáció: API hívás -> Mentés
+  const register = async (email: string, password: string, role: UserRole) => {
+    const data = await registerApi(email, password, role);
+    persist(data.token, data.user);
+  };
 
-async function register(email: string, password: string, role: UserRole) {
-  const data = await api("/api/auth/register", {
-    method: "POST",
-    body: JSON.stringify({ email, password, role }),
-  });
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem("mentora_token");
+    localStorage.removeItem("mentora_user");
+  };
 
-  persist(data.token, data.user);
-}
-
-const logout = () => {
-  // Opcionális: Backend hívás (tűz és felejtsd el módon, vagy await-tel)
-  api("/api/auth/logout", { method: "POST" }).catch(console.error);
-
-  setToken(null);
-  setUser(null);
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-};
-
-  const value = useMemo(
-    () => ({
-      user,
+  return (
+    <AuthContext.Provider value={{ 
+      user, 
       token,
-      isAuthenticated: !!token && !!user,
-      login,
+      login, 
       register,
-      logout,
-    }),
-    [user, token]
+      logout, 
+      isAuthenticated: !!user,
+      isLoading 
+    }}>
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-}
+};

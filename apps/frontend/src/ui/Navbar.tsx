@@ -11,19 +11,22 @@ export const Navbar: React.FC = () => {
     nav("/login");
   };
 
-  return (
-    <nav style={{ display: "flex", justifyContent: "space-between", padding: "12px 16px", background: "white", marginBottom: 16 }}>
-      <Link to="/" style={{ textDecoration: "none", fontWeight: 800 }}>Mentora</Link>
+  if (!isAuthenticated || !user) return null;
 
-      {isAuthenticated && user ? (
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <span>{user.email} ({user.role})</span>
-          {user.role === "teacher" && <Link to="/create" className="btn-primary">+ New Quiz</Link>}
-          <button type="button" onClick={handleLogout}>Logout</button>
+  return (
+    <nav className="navbar">
+      <div className="logo">Mentora</div>
+
+      <div className="nav-actions">
+        <div className="user-badge">
+          <span>{user.role === "teacher" ? "👨‍🏫" : "🎓"}</span>
+          <span>{user.email}</span>
         </div>
-      ) : (
-        <Link to="/login" className="btn-primary">Login</Link>
-      )}
+        
+        <button className="logout-btn" onClick={handleLogout}>
+          Kijelentkezés
+        </button>
+      </div>
     </nav>
   );
 };

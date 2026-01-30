@@ -5,99 +5,126 @@ import { Login } from "./pages/Login";
 import { QuizList } from "./ui/QuizList";
 import { CreateQuizForm } from "./ui/CreateQuizForm";
 import { MetricsPanel } from "./ui/MetricsPanel";
+import { Modal } from "./ui/Modal"; 
 import { useAuth } from "./context/AuthContext";
+import { QuizPlayer } from "./ui/QuizPlayer";
 
-// Ez a segéd komponens védi az útvonalakat
-function ProtectedRoute({ children }: { children: JSX.Element }) {
-  const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return children;
-}
-
-export default function App() {
-  const { user } = useAuth();
-  
-  // ÁLLAPOTOK A DASHBOARDHOZ
-  // showModal: látható-e a felugró ablak?
+// --- Dashboard Komponens ---
+const Dashboard = () => {
   const [showModal, setShowModal] = useState(false);
-  // refreshKey: ha ez változik, a lista újratölti magát
   const [refreshKey, setRefreshKey] = useState(0);
   const [showMetrics, setShowMetrics] = useState(false);
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
 
-  // Ez fut le, ha sikeresen létrehoztunk egy kvízt
-  const handleQuizCreated = () => {
-    setShowModal(false);       // Bezárjuk az ablakot
-    setRefreshKey(prev => prev + 1); // Frissítjük a listát
+  const handleCreateClick = () => {
+    setEditingQuizId(null);
+    setShowModal(true);
   };
 
-  // Dashboard tartalma (most már inline komponensként kezeljük a tisztaság kedvéért)
-  const Dashboard = (
-    <div className="dashboard active"> {/* A 'active' class a test.html stílusa miatt kell */}
-      
-      {/* A tartalom konténere - test.html 'main-content' */}
+  const handleEditClick = (id: string) => {
+    setEditingQuizId(id);
+    setShowModal(true);
+  };
+
+  const handleSuccess = () => {
+    setShowModal(false);
+    setRefreshKey(prev => prev + 1);
+    setEditingQuizId(null);
+  };
+
+  return (
+    <div className="dashboard active">
       <div className="main-content">
-        
-        {/* STATISZTIKÁK (Opcionális, a test.html alapján) */}
-        <div className="stats-grid">
-           <div className="stat-card">
-              <div className="stat-number">12</div>
-              <div className="stat-label">Aktív Kvízek</div>
-           </div>
-           <div className="stat-card">
-              <div className="stat-number">87%</div>
-              <div className="stat-label">Átlagos eredmény</div>
-           </div>
-        </div>
-
-        {/* Címsor és Gomb */}
         <div className="section-header">
-            <h2 className="section-title">Saját Projektek</h2>
-            {/* Itt nyitjuk meg a modalt navigáció helyett */}
-            <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-              + Új Kvíz
-            </button>
+          <h2 className="section-title">Saját Projektek</h2>
+          <button className="btn btn-primary" onClick={handleCreateClick}>
+            + Új Kvíz
+          </button>
         </div>
 
-        {/* LISTA */}
-        {/* A key={refreshKey} miatt újratöltődik, ha a key változik */}
-        <QuizList key={refreshKey} />
+        <QuizList key={refreshKey} onEdit={handleEditClick} />
 
-        {/* METRIKÁK TOGGLE (Meglévő funkciód) */}
-        <div style={{ marginTop: "2rem" }}>
-          <button className="btn btn-secondary" onClick={() => setShowMetrics((v) => !v)}>
+        <div style={{ marginTop: "40px" }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => setShowMetrics((v) => !v)}
+            style={{ padding: '12px 24px' }}
+          >
             {showMetrics ? "Metrikák elrejtése" : "Metrikák megjelenítése"}
           </button>
           {showMetrics && <MetricsPanel />}
         </div>
-
+        
+        <Modal 
+          isOpen={showModal} 
+          onClose={() => setShowModal(false)}
+          title={editingQuizId ? "Kvíz Szerkesztése" : "Új Kvíz Létrehozása"}
+        >
+          <CreateQuizForm 
+            quizId={editingQuizId} 
+            onSuccess={handleSuccess} 
+          />
+        </Modal>
       </div>
-
-      {/* MODAL: Csak akkor jelenítjük meg, ha a showModal igaz */}
-      {showModal && (
-        <CreateQuizForm 
-          onSuccess={handleQuizCreated} 
-          onCancel={() => setShowModal(false)} 
-        />
-      )}
     </div>
   );
+};
+
+// --- Protected Route ---
+function ProtectedRoute({ children }: { children: JSX.Element }) {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh',
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        Betöltés...
+      </div>
+    ); 
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+// --- Main App Component ---
+export default function App() {
+  const { user } = useAuth();
 
   return (
     <div>
-      {/* A Navbar mindig látszik, ha be vagyunk jelentkezve (opcionális logika) */}
       {user && <Navbar />}
 
       <Routes>
         <Route path="/login" element={<Login />} />
         
-        {/* A főoldal a Dashboard */}
         <Route
           path="/"
-          element={<ProtectedRoute>{Dashboard}</ProtectedRoute>}
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
         />
         
-        {/* A /create útvonalat töröltük, mert most már Modal-t használunk! */}
-
+        <Route
+          path="/play/:id"
+          element={
+            <ProtectedRoute>
+              <QuizPlayer />
+            </ProtectedRoute>
+          }
+        />
+        
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

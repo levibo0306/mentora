@@ -9,7 +9,7 @@ mentora-prototype/
 ├─ apps/
 │  ├─ frontend/        # Vite + React kliens (src/, tests/)
 │  └─ backend/         # Express API + PostgreSQL (src/)
-└─ docs/               # PRD/ADR és a Sprint 1-2 dokumentáció
+└─ docs/               # dokumentáció
 ```
 
 ## 2) Gyors indítás (lokál)
@@ -63,5 +63,5 @@ npm run test:frontend:ci
 
 ## 4) Dokumentáció
 
-A részletes dokumentumok a `docs/` mappában vannak (PRD/ADR, Sprint 1-2 anyagok).
+A részletes dokumentumok a `docs/` mappában vannak (PRD/ADR, Sprint 1-2 anyagok, prototype).
 
