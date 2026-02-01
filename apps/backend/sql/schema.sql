@@ -1,86 +1,254 @@
--- Mentora backend schema (idempotent-ish)
-create extension if not exists "uuid-ossp";
+--
+-- PostgreSQL database dump
+--
 
--- USERS
-create table if not exists users (
-  id uuid primary key default uuid_generate_v4(),
-  email text not null unique,
-  password_hash text not null,
-  role text not null check (role in ('teacher','student')),
-  created_at timestamptz not null default now()
-);
+\restrict U87epGufK9vl7qzL7b4bzWPtwbYtWKfNw87VeLXI1pygWGmck7xtxel0Vnb1Xzi
 
--- QUIZZES
-do $$
-begin
-  if not exists (select 1 from information_schema.tables where table_name='quizzes') then
-    create table quizzes (
-      id uuid primary key default uuid_generate_v4(),
-      owner_id uuid references users(id) on delete set null,
-      title text not null,
-      description text,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    );
-  else
-    -- Legacy table: add missing columns
-    if not exists (select 1 from information_schema.columns where table_name='quizzes' and column_name='id') then
-      alter table quizzes add column id uuid default uuid_generate_v4();
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name='quizzes' and column_name='owner_id') then
-      alter table quizzes add column owner_id uuid references users(id) on delete set null;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name='quizzes' and column_name='description') then
-      alter table quizzes add column description text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name='quizzes' and column_name='updated_at') then
-      alter table quizzes add column updated_at timestamptz not null default now();
-    end if;
-  end if;
-end $$;
+-- Dumped from database version 18.1
+-- Dumped by pg_dump version 18.1
 
-create or replace function set_updated_at()
-returns trigger as $$
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
+
+
+--
+-- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+
+
+--
+-- Name: set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
 begin
   new.updated_at = now();
   return new;
-end; $$ language plpgsql;
+end; $$;
 
-do $$
-begin
-  if exists (select 1 from information_schema.tables where table_name='quizzes')
-     and not exists (select 1 from pg_trigger where tgname='trg_quizzes_updated') then
-    create trigger trg_quizzes_updated
-    before update on quizzes
-    for each row execute function set_updated_at();
-  end if;
-end $$;
 
--- QUESTIONS
-create table if not exists questions (
-  id uuid primary key default uuid_generate_v4(),
-  quiz_id uuid not null references quizzes(id) on delete cascade,
-  prompt text not null,
-  options jsonb not null,
-  correct_index int not null check (correct_index >= 0),
-  explanation text
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: attempts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.attempts (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    quiz_id uuid NOT NULL,
+    user_id uuid,
+    answers jsonb NOT NULL,
+    score integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
--- SHARES
-create table if not exists quiz_shares (
-  id uuid primary key default uuid_generate_v4(),
-  quiz_id uuid not null references quizzes(id) on delete cascade,
-  token text not null unique,
-  created_at timestamptz not null default now(),
-  expires_at timestamptz
+
+--
+-- Name: questions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.questions (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    quiz_id uuid NOT NULL,
+    prompt text NOT NULL,
+    options jsonb NOT NULL,
+    correct_index integer NOT NULL,
+    explanation text,
+    difficulty integer,
+    total_attempts integer DEFAULT 0,
+    correct_attempts integer DEFAULT 0,
+    CONSTRAINT questions_correct_index_check CHECK ((correct_index >= 0)),
+    CONSTRAINT questions_difficulty_check CHECK (((difficulty >= 1) AND (difficulty <= 5)))
 );
 
--- ATTEMPTS
-create table if not exists attempts (
-  id uuid primary key default uuid_generate_v4(),
-  quiz_id uuid not null references quizzes(id) on delete cascade,
-  user_id uuid references users(id) on delete set null,
-  answers jsonb not null,
-  score int not null,
-  created_at timestamptz not null default now()
+
+--
+-- Name: quiz_shares; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.quiz_shares (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    quiz_id uuid NOT NULL,
+    token text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone
 );
+
+
+--
+-- Name: quizzes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.quizzes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    title text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    owner_id uuid,
+    description text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    mode text DEFAULT 'practice'::text,
+    CONSTRAINT quizzes_mode_check CHECK ((mode = ANY (ARRAY['practice'::text, 'assessment'::text]))),
+    CONSTRAINT quizzes_title_check CHECK ((length(TRIM(BOTH FROM title)) > 0))
+);
+
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.users (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    email text NOT NULL,
+    password_hash text NOT NULL,
+    role text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    xp integer DEFAULT 0,
+    level integer DEFAULT 1,
+    CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['teacher'::text, 'student'::text])))
+);
+
+
+--
+-- Name: attempts attempts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attempts
+    ADD CONSTRAINT attempts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: questions questions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.questions
+    ADD CONSTRAINT questions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quiz_shares quiz_shares_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quiz_shares
+    ADD CONSTRAINT quiz_shares_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quiz_shares quiz_shares_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quiz_shares
+    ADD CONSTRAINT quiz_shares_token_key UNIQUE (token);
+
+
+--
+-- Name: quizzes quizzes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quizzes
+    ADD CONSTRAINT quizzes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_email_key UNIQUE (email);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quizzes trg_quizzes_updated; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_quizzes_updated BEFORE UPDATE ON public.quizzes FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: attempts attempts_quiz_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attempts
+    ADD CONSTRAINT attempts_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES public.quizzes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: attempts attempts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attempts
+    ADD CONSTRAINT attempts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: questions questions_quiz_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.questions
+    ADD CONSTRAINT questions_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES public.quizzes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quiz_shares quiz_shares_quiz_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quiz_shares
+    ADD CONSTRAINT quiz_shares_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES public.quizzes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quizzes quizzes_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quizzes
+    ADD CONSTRAINT quizzes_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict U87epGufK9vl7qzL7b4bzWPtwbYtWKfNw87VeLXI1pygWGmck7xtxel0Vnb1Xzi
+

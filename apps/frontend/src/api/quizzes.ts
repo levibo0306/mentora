@@ -1,17 +1,27 @@
 // apps/frontend/src/api/quizzes.ts
 import { api } from "./http"; // Most már az 'api'-t importáljuk a te kódod alapján
 
-// --- Típusok ---
-export type Quiz = {
+
+// apps/frontend/src/api/quizzes.ts
+
+export interface Quiz {
   id: string;
   title: string;
-  description: string;
+  description?: string;
+  mode: 'practice' | 'assessment';
+  difficulty?: number;      // Ez maradjon meg a biztonság kedvéért
+  avg_difficulty?: number | string | null;
+  question_count?: number;
+  total_attempts?: number;
   created_at: string;
-};
+  updated_at: string;
+}
 
 export type CreateQuizDto = {
   title: string;
   description?: string;
+  mode: 'practice' | 'assessment'; // Ezt add hozzá!
+  difficulty?: number; 
 };
 
 export type CreateQuestionDto = {
@@ -19,6 +29,7 @@ export type CreateQuestionDto = {
   options: string[];
   correct_index: number;
   explanation?: string;
+  difficulty: number; 
 };
 
 // Válaszok típusa: { kerdes_id: valasztott_index }
@@ -78,6 +89,13 @@ export async function submitQuizAttempt(quizId: string, answers: QuizSubmission)
   return api<QuizResult>(`/api/quizzes/${quizId}/attempt`, {
     method: "POST",
     body: JSON.stringify({ answers }),
+  });
+}
+
+export async function generateQuestionsAI(topic: string) {
+  return api<CreateQuestionDto[]>("/api/quizzes/generate-ai", {
+    method: "POST",
+    body: JSON.stringify({ topic }),
   });
 }
 

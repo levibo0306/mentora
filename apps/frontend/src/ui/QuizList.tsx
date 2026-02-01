@@ -1,9 +1,26 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom"; 
+import { Link } from "react-router-dom";
 import { getQuizzes, Quiz, deleteQuiz } from "../api/quizzes";
 
 interface Props {
   onEdit: (id: string) => void;
+}
+
+type DiffBadge = { label: string; class: string };
+
+function getDifficultyStyle(avgDiff: number | string | null | undefined): DiffBadge {
+  const n = avgDiff == null ? 3 : Number(avgDiff);
+  const rounded = Math.round(Number.isFinite(n) ? n : 3);
+
+  const levels: Record<number, DiffBadge> = {
+    1: { label: "Nagyon könnyű", class: "diff-v-easy" },
+    2: { label: "Könnyű", class: "diff-easy" },
+    3: { label: "Közepes", class: "diff-medium" },
+    4: { label: "Nehéz", class: "diff-hard" },
+    5: { label: "Nagyon nehéz", class: "diff-v-hard" },
+  };
+
+  return levels[rounded] ?? levels[3];
 }
 
 export const QuizList = ({ onEdit }: Props) => {
@@ -30,97 +47,89 @@ export const QuizList = ({ onEdit }: Props) => {
     if (!confirm("Biztosan törölni szeretnéd ezt a kvízt?")) return;
     try {
       await deleteQuiz(id);
-      fetchList();
+      await fetchList();
     } catch (e) {
       alert("Hiba a törlésnél");
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '60px 20px',
-        fontSize: '18px',
-        color: '#666'
-      }}>
-        Betöltés...
-      </div>
-    );
-  }
-  
+  if (loading) return <div className="loading">Betöltés...</div>;
+
   if (quizzes.length === 0) {
     return (
       <div className="empty-state">
-        <div style={{ fontSize: '48px', marginBottom: '20px' }}>📚</div>
-        <p style={{ fontSize: '20px', fontWeight: '600', marginBottom: '10px' }}>
-          Még nincs kvízed
-        </p>
-        <p style={{ color: '#999' }}>
-          Kezdj el egyet létrehozni a fenti gombbal!
-        </p>
+        <div style={{ fontSize: "48px", marginBottom: "20px" }}>📚</div>
+        <p>Még nincs kvízed. Kezdj el egyet létrehozni!</p>
       </div>
     );
   }
 
   return (
     <div className="quiz-grid">
-      {quizzes.map((quiz) => (
-        <div key={quiz.id} className="quiz-card">
-          <div className="quiz-header">
-            <div>
-              <div className="difficulty-badge difficulty-medium">Medium</div>
-              <div className="quiz-title">{quiz.title}</div>
-              <div className="quiz-meta">{quiz.description || "Nincs leírás"}</div>
-            </div>
-          </div>
-          
-          <div className="quiz-body">
-            <div className="quiz-stats">
-              <div className="quiz-stat">
-                <div className="quiz-stat-value">?</div>
-                <div className="quiz-stat-label">Kérdések</div>
-              </div>
-              <div className="quiz-stat">
-                <div className="quiz-stat-value">0</div>
-                <div className="quiz-stat-label">Diákok</div>
-              </div>
-              <div className="quiz-stat">
-                <div className="quiz-stat-value">0</div>
-                <div className="quiz-stat-label">Próbák</div>
-              </div>
-            </div>
-            
-            <div className="quiz-actions">
-              <Link 
-                to={`/play/${quiz.id}`}
-                className="btn btn-primary"
-              >
-                ▶ Indítás
-              </Link>
+      {quizzes.map((quiz) => {
+        const diff = getDifficultyStyle((quiz as any).avg_difficulty);
 
-              <button 
-                onClick={() => onEdit(quiz.id)} 
-                className="btn btn-secondary"
+        return (
+          <div key={quiz.id} className="quiz-card">
+            <div className="quiz-header">
+              <div
+                className="quiz-header-top"
+                style={{ display: "flex", gap: "8px", marginBottom: "12px" }}
               >
-                Szerkesztés
-              </button>
-              
-              <button 
-                onClick={() => handleDelete(quiz.id)} 
-                className="btn btn-secondary"
-                style={{ 
-                  background: '#ffe6e6', 
-                  color: 'var(--danger)', 
-                  borderColor: 'var(--danger)' 
-                }}
-              >
-                Törlés
-              </button>
+                {/* Mode jelző */}
+                <span className={`mode-badge ${quiz.mode || "practice"}`}>
+                  {quiz.mode === "assessment" ? "🏆 Assessment" : "📖 Practice"}
+                </span>
+
+                {/* Nehézség (AVG kérdés difficulty alapján) */}
+                <div className={`difficulty-badge ${diff.class}`}>{diff.label}</div>
+              </div>
+
+              <div className="quiz-title" style={{ fontWeight: "bold", fontSize: "1.2rem" }}>
+                {quiz.title}
+              </div>
+
+              <div className="quiz-meta" style={{ color: "#666", marginTop: "4px" }}>
+                {quiz.description || "Nincs leírás"}
+              </div>
+            </div>
+
+            <div className="quiz-body" style={{ marginTop: "20px" }}>
+              <div className="quiz-stats" style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
+                <div className="quiz-stat">
+                  <div className="quiz-stat-value" style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+                    {quiz.question_count ?? "?"}
+                  </div>
+                  <div className="quiz-stat-label" style={{ fontSize: "0.8rem", color: "#999" }}>
+                    Kérdések
+                  </div>
+                </div>
+
+                <div className="quiz-stat">
+                  <div className="quiz-stat-value" style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+                    {quiz.total_attempts ?? 0}
+                  </div>
+                  <div className="quiz-stat-label" style={{ fontSize: "0.8rem", color: "#999" }}>
+                    Próbák
+                  </div>
+                </div>
+              </div>
+
+              <div className="quiz-actions" style={{ display: "flex", gap: "10px" }}>
+                <Link to={`/play/${quiz.id}`} className="btn btn-primary">
+                  ▶ Indítás
+                </Link>
+                <button onClick={() => onEdit(quiz.id)} className="btn btn-secondary">
+                  Szerkesztés
+                </button>
+                <button onClick={() => handleDelete(quiz.id)} className="btn btn-danger-soft">
+                  Törlés
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

@@ -759,3 +759,88 @@ button:active, .btn:active {
     grid-template-columns: 1fr;
   }
 }
+
+/* Mode Badge (Practice/Assessment) */
+.mode-badge {
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+.mode-badge.practice {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.mode-badge.assessment {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+/* Difficulty Badges */
+.difficulty-badge {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.difficulty-easy { background: #e8f5e9; color: #2e7d32; }
+.difficulty-medium { background: #fffde7; color: #fbc02d; }
+.difficulty-hard { background: #ffebee; color: #c62828; }
+
+/* Törlés gomb finomítása */
+.btn-danger-soft {
+  background: #fff5f5;
+  color: #ff4d4d;
+  border: 1px solid #ffcccc;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-danger-soft:hover {
+  background: #ff4d4d;
+  color: white;
+}
+
+
+.quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.difficulty-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+/* Színkódok */
+.diff-v-easy { background: #e0f7fa; color: #006064; border: 1px solid #006064; }
+.diff-easy   { background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }
+.diff-medium { background: #fff3e0; color: #e65100; border: 1px solid #e65100; }
+.diff-hard   { background: #ffebee; color: #c62828; border: 1px solid #c62828; }
+.diff-v-hard { background: #f3e5f5; color: #4a148c; border: 1px solid #4a148c; }
+
+.quiz-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 250px; /* Megakadályozza a szétugrást */
+}
+
+.quiz-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
