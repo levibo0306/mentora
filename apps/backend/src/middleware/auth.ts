@@ -26,6 +26,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) return next();
+
+  if (isTokenRevoked(token)) return next();
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET || "titkos-kulcs") as JwtPayload;
+    (req as any).user = payload;
+    (req as any).token = token;
+  } catch {
+    // ignore invalid token for optional auth
+  }
+  next();
+}
+
 // JAVÍTÁS: Hiányzó requireRole függvény hozzáadása
 export function requireRole(role: "teacher" | "student") {
   return (req: Request, res: Response, next: NextFunction) => {

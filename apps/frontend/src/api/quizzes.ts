@@ -42,6 +42,36 @@ export type QuizResult = {
   total: number;   // Összes kérdés száma
   correct: number; // Helyes válaszok száma
 };
+
+export type QuizQuestion = {
+  id: string;
+  prompt: string;
+  options: string[];
+  correct_index: number;
+};
+
+export type QuizAttempt = {
+  id: string;
+  user_id: string | null;
+  student_email: string | null;
+  answers: Record<string, number>;
+  score: number;
+  created_at: string;
+};
+
+export type QuizQuestionStats = {
+  question_id: string;
+  counts: number[];
+  correct_index: number;
+  total: number;
+  correct_count: number;
+};
+
+export type QuizResults = {
+  questions: QuizQuestion[];
+  attempts: QuizAttempt[];
+  stats: QuizQuestionStats[];
+};
 // --- API Hívások ---
 
 // Kvízek listázása
@@ -99,3 +129,6 @@ export async function generateQuestionsAI(topic: string) {
   });
 }
 
+export async function getQuizResults(id: string) {
+  return api<QuizResults>(`/api/quizzes/${id}/results`);
+}

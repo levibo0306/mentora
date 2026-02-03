@@ -3,6 +3,7 @@ import { z } from "zod";
 import { pool } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { generateQuizFromText } from "../services/ai";
+import { addXp, updateDailyMissionsOnAttempt } from "../services/gamification";
 
 export const quizzesRouter = Router();
 
@@ -34,6 +35,112 @@ quizzesRouter.get("/", requireAuth, async (req: any, res) => {
     );
 
     res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+quizzesRouter.get("/shared-with-me", requireAuth, async (req: any, res) => {
+  const userId = req.user?.sub;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const r = await pool.query(
+      `SELECT 
+          q.id, q.title, q.description, q.mode,
+          s.token, s.created_at as shared_at,
+          s.allow_reshare,
+          owner.email as owner_email,
+          sharer.email as shared_by_email,
+          (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id)::int as question_count
+       FROM quiz_shares s
+       JOIN quizzes q ON q.id = s.quiz_id
+       LEFT JOIN users owner ON owner.id = q.owner_id
+       LEFT JOIN users sharer ON sharer.id = s.shared_by
+       WHERE s.recipient_id = $1
+       ORDER BY s.created_at DESC LIMIT 50`,
+      [userId]
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+quizzesRouter.get("/:id/results", requireAuth, async (req: any, res) => {
+  const userId = req.user?.sub;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { id } = uuidParam.parse(req.params);
+
+  try {
+    const check = await pool.query(
+      "SELECT 1 FROM quizzes WHERE id=$1 AND owner_id=$2",
+      [id, userId]
+    );
+    if (check.rowCount === 0)
+      return res.status(403).json({ error: "Ehhez nincs jogosultságod (vagy nem létezik)" });
+
+    const questionsRes = await pool.query(
+      `SELECT id, prompt, options, correct_index
+       FROM questions
+       WHERE quiz_id=$1
+       ORDER BY id`,
+      [id]
+    );
+    const questions = questionsRes.rows as Array<{
+      id: string;
+      prompt: string;
+      options: string[];
+      correct_index: number;
+    }>;
+
+    const attemptsRes = await pool.query(
+      `SELECT 
+         a.id,
+         a.user_id,
+         a.answers,
+         a.score,
+         a.created_at,
+         u.email as student_email
+       FROM attempts a
+       LEFT JOIN users u ON u.id = a.user_id
+       WHERE a.quiz_id = $1
+       ORDER BY a.created_at DESC`,
+      [id]
+    );
+
+    const stats = questions.map((q) => ({
+      question_id: q.id,
+      counts: new Array(q.options.length).fill(0),
+      correct_index: q.correct_index,
+      total: 0,
+      correct_count: 0,
+    }));
+    const statsById = new Map(stats.map((s) => [s.question_id, s]));
+
+    for (const att of attemptsRes.rows) {
+      const answers = att.answers ?? {};
+      for (const q of questions) {
+        const selected = answers[q.id];
+        if (selected === undefined) continue;
+        const s = statsById.get(q.id);
+        if (!s) continue;
+        if (selected >= 0 && selected < s.counts.length) {
+          s.counts[selected] += 1;
+          s.total += 1;
+          if (selected === s.correct_index) s.correct_count += 1;
+        }
+      }
+    }
+
+    res.json({
+      questions,
+      attempts: attemptsRes.rows,
+      stats,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
@@ -265,10 +372,9 @@ quizzesRouter.post("/:id/attempt", requireAuth, async (req: any, res) => {
 
     // 3) XP jóváírás
     const xpReward = Math.ceil(score / 10);
-    await pool.query(
-      "UPDATE users SET xp = xp + $1 WHERE id = $2",
-      [xpReward, userId]
-    );
+    await addXp(userId, xpReward);
+    const tzOffset = Number(req.headers["x-timezone-offset"] ?? 0);
+    await updateDailyMissionsOnAttempt(userId, score, Number.isFinite(tzOffset) ? tzOffset : 0);
 
     res.json({
       score,

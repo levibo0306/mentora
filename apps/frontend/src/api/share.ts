@@ -1,10 +1,48 @@
 import { api } from "./http";
 
-export async function fetchShared(token: string) {
-  const res = await api(`/api/share/${token}`, { method:"GET" });
-  return res.json();
+export type SharedQuizData = {
+  quiz: {
+    id: string;
+    title: string;
+    description?: string;
+  };
+  questions: Array<{
+    id: string;
+    prompt: string;
+    options: string[] | string; // Lehet string (JSON) is a backend-ből
+  }>;
+};
+
+export type SharedQuizResult = {
+  score: number;
+  max: number;
+};
+
+/**
+ * Megosztott kvíz betöltése token alapján
+ */
+export async function fetchSharedQuiz(token: string) {
+  return api<SharedQuizData>(`/api/share/${token}`);
 }
-export async function submitShared(token: string, answers: Record<string, number>) {
-  const res = await api(`/api/share/${token}/submit`, { method:"POST", body: JSON.stringify({ answers }) });
-  return res.json(); // {score,max}
+
+/**
+ * Megosztott kvíz kitöltése
+ */
+export async function submitSharedQuiz(
+  token: string, 
+  answers: Record<string, number>
+) {
+  return api<SharedQuizResult>(`/api/share/${token}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ answers })
+  });
+}
+
+/**
+ * Megosztási link generálása (tanár)
+ */
+export async function createShareLink(quizId: string) {
+  return api<{ token: string }>(`/api/quizzes/${quizId}/share`, {
+    method: 'POST'
+  });
 }

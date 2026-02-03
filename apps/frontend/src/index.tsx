@@ -4,17 +4,24 @@ import { Navbar } from "./ui/Navbar";
 import { Login } from "./pages/Login";
 import { QuizList } from "./ui/QuizList";
 import { CreateQuizForm } from "./ui/CreateQuizForm";
-import { MetricsPanel } from "./ui/MetricsPanel";
+import { Results } from "./pages/Results";
+import { Missions } from "./pages/Missions";
 import { Modal } from "./ui/Modal"; 
 import { useAuth } from "./context/AuthContext";
 import { QuizPlayer } from "./ui/QuizPlayer";
+import { SharedQuiz } from "./pages/SharedQuiz";
+import { SharedWithMe } from "./ui/SharedWithMe";
+import { DashboardOverview } from "./ui/DashboardOverview";
 
 // --- Dashboard Komponens ---
 const Dashboard = () => {
+  const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [showMetrics, setShowMetrics] = useState(false);
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+  
+  // Tab state (csak diákoknak)
+  const [activeTab, setActiveTab] = useState<'own' | 'shared'>('own');
 
   const handleCreateClick = () => {
     setEditingQuizId(null);
@@ -32,39 +39,65 @@ const Dashboard = () => {
     setEditingQuizId(null);
   };
 
+  const isStudent = user?.role === 'student';
+
   return (
     <div className="dashboard active">
       <div className="main-content">
+        <DashboardOverview />
+
         <div className="section-header">
-          <h2 className="section-title">Saját Projektek</h2>
-          <button className="btn btn-primary" onClick={handleCreateClick}>
-            + Új Kvíz
-          </button>
+          <h2 className="section-title">{isStudent ? "Kvízeim" : "Saját kvízeim"}</h2>
+          
+          {!isStudent && (
+            <button className="btn btn-primary" onClick={handleCreateClick}>
+              + Új Kvíz
+            </button>
+          )}
         </div>
 
-        <QuizList key={refreshKey} onEdit={handleEditClick} />
+        {/* TAB SWITCHER - csak diákoknak */}
+        {isStudent && (
+          <div className="tabs">
+            <button
+              onClick={() => setActiveTab('own')}
+              className={`tab ${activeTab === 'own' ? "active" : ""}`}
+            >
+              📚 Saját Kvízek
+            </button>
+            <button
+              onClick={() => setActiveTab('shared')}
+              className={`tab ${activeTab === 'shared' ? "active" : ""}`}
+            >
+              👨‍🏫 Velem Megosztva
+            </button>
+          </div>
+        )}
 
-        <div style={{ marginTop: "40px" }}>
-          <button 
-            className="btn btn-secondary" 
-            onClick={() => setShowMetrics((v) => !v)}
-            style={{ padding: '12px 24px' }}
+        {/* CONTENT - diákoknál tab-based, tanároknál csak lista */}
+        {isStudent ? (
+          activeTab === 'own' ? (
+            <QuizList key={refreshKey} onEdit={handleEditClick} />
+          ) : (
+            <SharedWithMe key={`shared-${refreshKey}`} />
+          )
+        ) : (
+          <QuizList key={refreshKey} onEdit={handleEditClick} />
+        )}
+
+        {/* Modal - csak tanároknak */}
+        {!isStudent && (
+          <Modal 
+            isOpen={showModal} 
+            onClose={() => setShowModal(false)}
+            title={editingQuizId ? "Kvíz Szerkesztése" : "Új Kvíz Létrehozása"}
           >
-            {showMetrics ? "Metrikák elrejtése" : "Metrikák megjelenítése"}
-          </button>
-          {showMetrics && <MetricsPanel />}
-        </div>
-        
-        <Modal 
-          isOpen={showModal} 
-          onClose={() => setShowModal(false)}
-          title={editingQuizId ? "Kvíz Szerkesztése" : "Új Kvíz Létrehozása"}
-        >
-          <CreateQuizForm 
-            quizId={editingQuizId} 
-            onSuccess={handleSuccess} 
-          />
-        </Modal>
+            <CreateQuizForm 
+              quizId={editingQuizId} 
+              onSuccess={handleSuccess} 
+            />
+          </Modal>
+        )}
       </div>
     </div>
   );
@@ -106,6 +139,25 @@ export default function App() {
 
       <Routes>
         <Route path="/login" element={<Login />} />
+        
+        {/* PUBLIC ROUTE - Nincs védelem! */}
+        <Route path="/shared/:token" element={<SharedQuiz />} />
+        <Route
+          path="/results"
+          element={
+            <ProtectedRoute>
+              <Results />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/missions"
+          element={
+            <ProtectedRoute>
+              <Missions />
+            </ProtectedRoute>
+          }
+        />
         
         <Route
           path="/"

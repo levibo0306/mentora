@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getQuizzes, Quiz, deleteQuiz } from "../api/quizzes";
+import { ShareModal } from "./ShareModal";
 
 interface Props {
   onEdit: (id: string) => void;
@@ -26,6 +27,10 @@ function getDifficultyStyle(avgDiff: number | string | null | undefined): DiffBa
 export const QuizList = ({ onEdit }: Props) => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Share modal state
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
 
   const fetchList = async () => {
     try {
@@ -53,6 +58,11 @@ export const QuizList = ({ onEdit }: Props) => {
     }
   };
 
+  const handleShare = (quiz: Quiz) => {
+    setSelectedQuiz(quiz);
+    setShareModalOpen(true);
+  };
+
   if (loading) return <div className="loading">Betöltés...</div>;
 
   if (quizzes.length === 0) {
@@ -65,71 +75,111 @@ export const QuizList = ({ onEdit }: Props) => {
   }
 
   return (
-    <div className="quiz-grid">
-      {quizzes.map((quiz) => {
-        const diff = getDifficultyStyle((quiz as any).avg_difficulty);
+    <>
+      <div className="quiz-grid">
+        {quizzes.map((quiz) => {
+          const diff = getDifficultyStyle((quiz as any).avg_difficulty);
 
-        return (
-          <div key={quiz.id} className="quiz-card">
-            <div className="quiz-header">
-              <div
-                className="quiz-header-top"
-                style={{ display: "flex", gap: "8px", marginBottom: "12px" }}
-              >
-                {/* Mode jelző */}
-                <span className={`mode-badge ${quiz.mode || "practice"}`}>
-                  {quiz.mode === "assessment" ? "🏆 Assessment" : "📖 Practice"}
-                </span>
+          return (
+            <div key={quiz.id} className="quiz-card">
+              <div className="quiz-header">
+                <div
+                  className="quiz-header-top"
+                  style={{ display: "flex", gap: "8px", marginBottom: "12px" }}
+                >
+                  {/* Mode jelző */}
+                  <span className={`mode-badge ${quiz.mode || "practice"}`}>
+                    {quiz.mode === "assessment" ? "🏆 Assessment" : "📖 Practice"}
+                  </span>
 
-                {/* Nehézség (AVG kérdés difficulty alapján) */}
-                <div className={`difficulty-badge ${diff.class}`}>{diff.label}</div>
-              </div>
-
-              <div className="quiz-title" style={{ fontWeight: "bold", fontSize: "1.2rem" }}>
-                {quiz.title}
-              </div>
-
-              <div className="quiz-meta" style={{ color: "#666", marginTop: "4px" }}>
-                {quiz.description || "Nincs leírás"}
-              </div>
-            </div>
-
-            <div className="quiz-body" style={{ marginTop: "20px" }}>
-              <div className="quiz-stats" style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
-                <div className="quiz-stat">
-                  <div className="quiz-stat-value" style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-                    {quiz.question_count ?? "?"}
-                  </div>
-                  <div className="quiz-stat-label" style={{ fontSize: "0.8rem", color: "#999" }}>
-                    Kérdések
-                  </div>
+                  {/* Nehézség (AVG kérdés difficulty alapján) */}
+                  <div className={`difficulty-badge ${diff.class}`}>{diff.label}</div>
                 </div>
 
-                <div className="quiz-stat">
-                  <div className="quiz-stat-value" style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-                    {quiz.total_attempts ?? 0}
-                  </div>
-                  <div className="quiz-stat-label" style={{ fontSize: "0.8rem", color: "#999" }}>
-                    Próbák
-                  </div>
+                <div className="quiz-title" style={{ fontWeight: "bold", fontSize: "1.2rem" }}>
+                  {quiz.title}
+                </div>
+
+                <div className="quiz-meta" style={{ color: "#666", marginTop: "4px" }}>
+                  {quiz.description || "Nincs leírás"}
                 </div>
               </div>
 
-              <div className="quiz-actions" style={{ display: "flex", gap: "10px" }}>
-                <Link to={`/play/${quiz.id}`} className="btn btn-primary">
-                  ▶ Indítás
-                </Link>
-                <button onClick={() => onEdit(quiz.id)} className="btn btn-secondary">
-                  Szerkesztés
-                </button>
-                <button onClick={() => handleDelete(quiz.id)} className="btn btn-danger-soft">
-                  Törlés
-                </button>
+              <div className="quiz-body" style={{ marginTop: "20px" }}>
+                <div className="quiz-stats" style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
+                  <div className="quiz-stat">
+                    <div className="quiz-stat-value" style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+                      {quiz.question_count ?? "?"}
+                    </div>
+                    <div className="quiz-stat-label" style={{ fontSize: "0.8rem", color: "#999" }}>
+                      Kérdések
+                    </div>
+                  </div>
+
+                  <div className="quiz-stat">
+                    <div className="quiz-stat-value" style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+                      {quiz.total_attempts ?? 0}
+                    </div>
+                    <div className="quiz-stat-label" style={{ fontSize: "0.8rem", color: "#999" }}>
+                      Próbák
+                    </div>
+                  </div>
+                </div>
+
+                <div className="quiz-actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <Link 
+                    to={`/play/${quiz.id}`} 
+                    className="btn btn-primary"
+                    style={{ flex: '1 1 calc(50% - 5px)', minWidth: '120px' }}
+                  >
+                    ▶ Indítás
+                  </Link>
+                  <button 
+                    onClick={() => handleShare(quiz)} 
+                    className="btn"
+                    style={{ 
+                      flex: '1 1 calc(50% - 5px)',
+                      minWidth: '120px',
+                      background: 'linear-gradient(135deg, var(--success), #00d4aa)',
+                      color: 'white',
+                      boxShadow: '0 4px 15px rgba(6, 214, 160, 0.2)'
+                    }}
+                  >
+                    📤 Megosztás
+                  </button>
+                  <button 
+                    onClick={() => onEdit(quiz.id)} 
+                    className="btn btn-secondary"
+                    style={{ flex: '1 1 calc(50% - 5px)', minWidth: '120px' }}
+                  >
+                    ✏️ Szerkesztés
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(quiz.id)} 
+                    className="btn btn-danger-soft"
+                    style={{ flex: '1 1 calc(50% - 5px)', minWidth: '120px' }}
+                  >
+                    🗑️ Törlés
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+
+      {/* Share Modal */}
+      {selectedQuiz && (
+        <ShareModal
+          quizId={selectedQuiz.id}
+          quizTitle={selectedQuiz.title}
+          isOpen={shareModalOpen}
+          onClose={() => {
+            setShareModalOpen(false);
+            setSelectedQuiz(null);
+          }}
+        />
+      )}
+    </>
   );
 };

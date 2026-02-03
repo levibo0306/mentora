@@ -125,6 +125,13 @@ export const QuizPlayer = () => {
         >
           Vissza a Dashboardra
         </button>
+        <button
+          onClick={() => window.location.reload()}
+          className="btn btn-secondary"
+          style={{ marginTop: '12px', padding: '14px 40px' }}
+        >
+          🔄 Újrapróbálom
+        </button>
       </div>
     );
   }

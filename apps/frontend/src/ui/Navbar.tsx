@@ -18,6 +18,24 @@ export const Navbar: React.FC = () => {
       <div className="logo">Mentora</div>
 
       <div className="nav-actions">
+        {user.role === "student" && (
+          <Link
+            to="/missions"
+            className="btn btn-secondary"
+            style={{ padding: "8px 14px", textDecoration: "none" }}
+          >
+            Küldetések
+          </Link>
+        )}
+        {user.role === "teacher" && (
+          <Link
+            to="/results"
+            className="btn btn-secondary"
+            style={{ padding: "8px 14px", textDecoration: "none" }}
+          >
+            Eredmények
+          </Link>
+        )}
         <div className="user-badge">
           <span>{user.role === "teacher" ? "👨‍🏫" : "🎓"}</span>
           <span>{user.email}</span>

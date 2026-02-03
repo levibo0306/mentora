@@ -105,8 +105,45 @@ CREATE TABLE public.quiz_shares (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     quiz_id uuid NOT NULL,
     token text NOT NULL,
+    recipient_id uuid,
+    shared_by uuid,
+    allow_reshare boolean DEFAULT false NOT NULL,
+    parent_share_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     expires_at timestamp with time zone
+);
+
+--
+-- Name: daily_missions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.daily_missions (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    user_id uuid NOT NULL,
+    date date NOT NULL,
+    mission_id text NOT NULL,
+    title text NOT NULL,
+    description text NOT NULL,
+    type text NOT NULL,
+    target integer NOT NULL,
+    threshold integer,
+    difficulty text NOT NULL,
+    xp_reward integer NOT NULL,
+    progress integer DEFAULT 0 NOT NULL,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+--
+-- Name: user_streaks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_streaks (
+    user_id uuid NOT NULL,
+    current_streak integer DEFAULT 0 NOT NULL,
+    last_active_date date NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (user_id)
 );
 
 
@@ -237,6 +274,41 @@ ALTER TABLE ONLY public.questions
 ALTER TABLE ONLY public.quiz_shares
     ADD CONSTRAINT quiz_shares_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES public.quizzes(id) ON DELETE CASCADE;
 
+--
+-- Name: quiz_shares quiz_shares_recipient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quiz_shares
+    ADD CONSTRAINT quiz_shares_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+--
+-- Name: quiz_shares quiz_shares_shared_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quiz_shares
+    ADD CONSTRAINT quiz_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+--
+-- Name: quiz_shares quiz_shares_parent_share_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quiz_shares
+    ADD CONSTRAINT quiz_shares_parent_share_id_fkey FOREIGN KEY (parent_share_id) REFERENCES public.quiz_shares(id) ON DELETE SET NULL;
+
+--
+-- Name: daily_missions daily_missions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.daily_missions
+    ADD CONSTRAINT daily_missions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+--
+-- Name: user_streaks user_streaks_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_streaks
+    ADD CONSTRAINT user_streaks_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
 
 --
 -- Name: quizzes quizzes_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -251,4 +323,3 @@ ALTER TABLE ONLY public.quizzes
 --
 
 \unrestrict U87epGufK9vl7qzL7b4bzWPtwbYtWKfNw87VeLXI1pygWGmck7xtxel0Vnb1Xzi
-

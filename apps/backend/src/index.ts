@@ -7,6 +7,7 @@ import { healthcheck } from "./db";
 import { authRouter } from "./routes/auth";
 import { quizzesRouter } from "./routes/quizzes";
 import { shareRouter } from "./routes/share";
+import { usersRouter } from "./routes/users";
 
 
 const app = express();
@@ -51,6 +52,7 @@ app.get("/metrics", (_req, res) => res.json(metrics));
 app.use("/api/auth", authRouter);
 app.use("/api/quizzes", quizzesRouter);
 app.use("/api", shareRouter);
+app.use("/api/users", usersRouter);
 
 // Error handler
 app.use((err: any, _req: any, res: any, _next: any) => {
