@@ -9,6 +9,7 @@ export const authRouter = Router();
 
 // --- REGISTER ---
 const RegisterBody = z.object({
+  username: z.string().min(3).max(24).regex(/^[a-zA-Z0-9_.]+$/),
   email: z.string().email(),
   password: z.string().min(6).max(72),
   role: z.enum(["teacher", "student"]),
@@ -16,12 +17,12 @@ const RegisterBody = z.object({
 
 authRouter.post("/register", async (req, res) => {
   try {
-    const { email, password, role } = RegisterBody.parse(req.body);
+    const { username, email, password, role } = RegisterBody.parse(req.body);
     const password_hash = await bcrypt.hash(password, 12);
 
     const r = await pool.query(
-      "insert into users(email,password_hash,role) values($1,$2,$3) returning id,email,role",
-      [email.toLowerCase(), password_hash, role]
+      "insert into users(username,email,password_hash,role) values($1,$2,$3,$4) returning id,username,email,role",
+      [username.trim().toLowerCase(), email.toLowerCase(), password_hash, role]
     );
 
     const user = r.rows[0];
@@ -35,17 +36,18 @@ authRouter.post("/register", async (req, res) => {
 
 // --- LOGIN ---
 const LoginBody = z.object({
-  email: z.string().email(),
+  identifier: z.string().min(3),
   password: z.string().min(1),
 });
 
 authRouter.post("/login", async (req, res) => {
   try {
-    const { email, password } = LoginBody.parse(req.body);
+    const { identifier, password } = LoginBody.parse(req.body);
+    const id = identifier.trim().toLowerCase();
 
     const r = await pool.query(
-      "select id,email,role,password_hash from users where email=$1",
-      [email.toLowerCase()]
+      "select id,username,email,role,password_hash from users where email=$1 or username=$1",
+      [id]
     );
     
     if (r.rowCount === 0) {
@@ -60,7 +62,7 @@ authRouter.post("/login", async (req, res) => {
     }
 
     const token = signToken({ sub: u.id, email: u.email, role: u.role });
-    res.json({ token, user: { id: u.id, email: u.email, role: u.role } });
+    res.json({ token, user: { id: u.id, username: u.username, email: u.email, role: u.role } });
   } catch (err: any) {
     console.error("Login error:", err);
     res.status(400).json({ error: err.message || "Login failed" });
@@ -79,7 +81,7 @@ authRouter.get("/me", requireAuth, async (req, res) => {
 
     // Opcionálisan: friss adat DB-ből
     const r = await pool.query(
-      "select id, email, role, xp from users where id=$1",
+      "select id, username, email, role, xp from users where id=$1",
       [user.sub]
     );
 
@@ -91,6 +93,7 @@ authRouter.get("/me", requireAuth, async (req, res) => {
     res.json({ 
       user: { 
         id: u.id, 
+        username: u.username,
         email: u.email, 
         role: u.role,
         xp: u.xp || 0

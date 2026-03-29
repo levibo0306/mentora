@@ -9,6 +9,7 @@ export interface Quiz {
   title: string;
   description?: string;
   mode: 'practice' | 'assessment';
+  topic_id?: string | null;
   difficulty?: number;      // Ez maradjon meg a biztonság kedvéért
   avg_difficulty?: number | string | null;
   question_count?: number;
@@ -22,6 +23,7 @@ export type CreateQuizDto = {
   description?: string;
   mode: 'practice' | 'assessment'; // Ezt add hozzá!
   difficulty?: number; 
+  topic_id?: string;
 };
 
 export type CreateQuestionDto = {
@@ -75,9 +77,10 @@ export type QuizResults = {
 // --- API Hívások ---
 
 // Kvízek listázása
-export async function getQuizzes() {
+export async function getQuizzes(topicId?: string | null) {
   // A backend az '/api/quizzes' útvonalon figyel (lásd backend/src/index.ts)
-  return api<Quiz[]>("/api/quizzes");
+  const qs = topicId ? `?topic_id=${encodeURIComponent(topicId)}` : "";
+  return api<Quiz[]>(`/api/quizzes${qs}`);
 }
 
 // Egy kvíz lekérése
@@ -112,6 +115,13 @@ export async function deleteQuiz(id: string) {
 export async function createQuestion(quizId: string, data: CreateQuestionDto) {
   return api<any>(`/api/quizzes/${quizId}/questions`, {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateQuestion(quizId: string, questionId: string, data: CreateQuestionDto) {
+  return api<any>(`/api/quizzes/${quizId}/questions/${questionId}`, {
+    method: "PUT",
     body: JSON.stringify(data),
   });
 }

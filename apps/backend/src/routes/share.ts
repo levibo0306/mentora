@@ -58,7 +58,7 @@ shareRouter.post("/quizzes/:id/share", requireAuth, async (req: any, res) => {
   const tokens: Array<{ token: string; recipient_email?: string }> = [];
 
   if (recipientRows.length === 0) {
-    const token = nanoid(16);
+  const token = nanoid(8);
     await pool.query(
       "insert into quiz_shares(quiz_id, token, shared_by, allow_reshare, parent_share_id) values($1,$2,$3,$4,$5)",
       [id, token, userId, allowReshare, sourceShare?.id ?? null]
@@ -66,7 +66,7 @@ shareRouter.post("/quizzes/:id/share", requireAuth, async (req: any, res) => {
     tokens.push({ token });
   } else {
     for (const recipient of recipientRows) {
-      const token = nanoid(16);
+      const token = nanoid(8);
       await pool.query(
         "insert into quiz_shares(quiz_id, token, recipient_id, shared_by, allow_reshare, parent_share_id) values($1,$2,$3,$4,$5,$6)",
         [id, token, recipient.id, userId, allowReshare, sourceShare?.id ?? null]
@@ -76,6 +76,38 @@ shareRouter.post("/quizzes/:id/share", requireAuth, async (req: any, res) => {
   }
 
   res.json({ tokens });
+});
+
+// Claim a shared quiz by code/link
+shareRouter.post("/share/claim", requireAuth, async (req: any, res) => {
+  const userId = req.user?.sub;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const Body = z.object({ token: z.string().min(6) });
+  const { token } = Body.parse(req.body);
+
+  const s = await pool.query(
+    "select id, quiz_id, recipient_id, allow_reshare, shared_by, token from quiz_shares where token=$1",
+    [token]
+  );
+  if (s.rowCount === 0) return res.status(404).json({ error: "Invalid code" });
+  const share = s.rows[0];
+
+  if (share.recipient_id && share.recipient_id !== userId) {
+    return res.status(403).json({ error: "Not allowed" });
+  }
+
+  if (share.recipient_id === userId) {
+    return res.json({ token: share.token });
+  }
+
+  const newToken = nanoid(8);
+  await pool.query(
+    "insert into quiz_shares(quiz_id, token, recipient_id, shared_by, allow_reshare, parent_share_id) values($1,$2,$3,$4,$5,$6)",
+    [share.quiz_id, newToken, userId, share.shared_by, share.allow_reshare, share.id]
+  );
+
+  res.json({ token: newToken });
 });
 
 // Student/public: get shared quiz by token

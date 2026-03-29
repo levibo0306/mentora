@@ -36,10 +36,10 @@ export const Navbar: React.FC = () => {
             Eredmények
           </Link>
         )}
-        <div className="user-badge">
+        <Link to="/profile" className="user-badge" style={{ textDecoration: "none" }}>
           <span>{user.role === "teacher" ? "👨‍🏫" : "🎓"}</span>
-          <span>{user.email}</span>
-        </div>
+          <span>{user.username ?? user.email}</span>
+        </Link>
         
         <button className="logout-btn" onClick={handleLogout}>
           Kijelentkezés

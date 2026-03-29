@@ -1,17 +1,21 @@
 import React, { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Link } from "react-router-dom";
 import { Navbar } from "./ui/Navbar";
 import { Login } from "./pages/Login";
 import { QuizList } from "./ui/QuizList";
 import { CreateQuizForm } from "./ui/CreateQuizForm";
 import { Results } from "./pages/Results";
 import { Missions } from "./pages/Missions";
+import { Profile } from "./pages/Profile";
+import { TopicDetail } from "./pages/TopicDetail";
 import { Modal } from "./ui/Modal"; 
 import { useAuth } from "./context/AuthContext";
 import { QuizPlayer } from "./ui/QuizPlayer";
 import { SharedQuiz } from "./pages/SharedQuiz";
 import { SharedWithMe } from "./ui/SharedWithMe";
+import { SharedAdd } from "./ui/SharedAdd";
 import { DashboardOverview } from "./ui/DashboardOverview";
+import { TopicsPanel } from "./ui/TopicsPanel";
 
 // --- Dashboard Komponens ---
 const Dashboard = () => {
@@ -21,7 +25,7 @@ const Dashboard = () => {
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   
   // Tab state (csak diákoknak)
-  const [activeTab, setActiveTab] = useState<'own' | 'shared'>('own');
+  const [activeTab, setActiveTab] = useState<'own' | 'shared' | 'add' | 'topics'>('own');
 
   const handleCreateClick = () => {
     setEditingQuizId(null);
@@ -46,14 +50,31 @@ const Dashboard = () => {
       <div className="main-content">
         <DashboardOverview />
 
+        {!isStudent && (
+          <div className="teacher-hq">
+            <div className="teacher-hq-row">
+              <div className="teacher-hq-title">🎯 Teacher HQ</div>
+              <div className="teacher-hq-sub">Gyors műveletek a kvízekhez</div>
+            </div>
+            <div className="teacher-hq-actions">
+              <button className="btn btn-primary btn-sm" onClick={handleCreateClick}>
+                + Új kvíz
+              </button>
+              <Link to="/results" className="btn btn-secondary btn-sm">
+                Eredmények
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {!isStudent && <TopicsPanel />}
+
         <div className="section-header">
           <h2 className="section-title">{isStudent ? "Kvízeim" : "Saját kvízeim"}</h2>
           
-          {!isStudent && (
-            <button className="btn btn-primary" onClick={handleCreateClick}>
+          <button className="btn btn-primary btn-sm" onClick={handleCreateClick}>
               + Új Kvíz
-            </button>
-          )}
+          </button>
         </div>
 
         {/* TAB SWITCHER - csak diákoknak */}
@@ -71,6 +92,18 @@ const Dashboard = () => {
             >
               👨‍🏫 Velem Megosztva
             </button>
+            <button
+              onClick={() => setActiveTab('add')}
+              className={`tab ${activeTab === 'add' ? "active" : ""}`}
+            >
+              ➕ Hozzáadás
+            </button>
+            <button
+              onClick={() => setActiveTab('topics')}
+              className={`tab ${activeTab === 'topics' ? "active" : ""}`}
+            >
+              🧩 Témák
+            </button>
           </div>
         )}
 
@@ -78,26 +111,33 @@ const Dashboard = () => {
         {isStudent ? (
           activeTab === 'own' ? (
             <QuizList key={refreshKey} onEdit={handleEditClick} />
-          ) : (
+          ) : activeTab === 'shared' ? (
             <SharedWithMe key={`shared-${refreshKey}`} />
+          ) : activeTab === 'add' ? (
+            <SharedAdd
+              onAdded={() => {
+                setActiveTab("shared");
+                setRefreshKey((prev) => prev + 1);
+              }}
+            />
+          ) : (
+            <TopicsPanel />
           )
         ) : (
           <QuizList key={refreshKey} onEdit={handleEditClick} />
         )}
 
-        {/* Modal - csak tanároknak */}
-        {!isStudent && (
-          <Modal 
-            isOpen={showModal} 
-            onClose={() => setShowModal(false)}
-            title={editingQuizId ? "Kvíz Szerkesztése" : "Új Kvíz Létrehozása"}
-          >
-            <CreateQuizForm 
-              quizId={editingQuizId} 
-              onSuccess={handleSuccess} 
-            />
-          </Modal>
-        )}
+        {/* Modal */}
+        <Modal 
+          isOpen={showModal} 
+          onClose={() => setShowModal(false)}
+          title={editingQuizId ? "Kvíz Szerkesztése" : "Új Kvíz Létrehozása"}
+        >
+          <CreateQuizForm 
+            quizId={editingQuizId} 
+            onSuccess={handleSuccess} 
+          />
+        </Modal>
       </div>
     </div>
   );
@@ -155,6 +195,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Missions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/topics/:id"
+          element={
+            <ProtectedRoute>
+              <TopicDetail />
             </ProtectedRoute>
           }
         />

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { createQuiz, createQuestion, updateQuiz, getQuiz, CreateQuestionDto, generateQuestionsAI } from '../api/quizzes';
+import { createQuiz, createQuestion, updateQuestion, updateQuiz, getQuiz, CreateQuestionDto } from '../api/quizzes';
+import { getTopics, Topic } from '../api/topics';
 import { api } from '../api/http';
 
 interface Props {
@@ -8,10 +9,12 @@ interface Props {
 }
 
 export const CreateQuizForm = ({ quizId, onSuccess }: Props) => {
+  const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [mode, setMode] = useState<'practice' | 'assessment'>('practice');
-  const [questions, setQuestions] = useState<CreateQuestionDto[]>([]);
+  const [topicId, setTopicId] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<Array<CreateQuestionDto & { id?: string }>>([]);
 
   // Aktuális kérdés szerkesztése
   const [currentPrompt, setCurrentPrompt] = useState('');
@@ -19,11 +22,14 @@ export const CreateQuizForm = ({ quizId, onSuccess }: Props) => {
   const [correctIndex, setCorrectIndex] = useState(0);
   const [explanation, setExplanation] = useState('');
   const [difficulty, setDifficulty] = useState(3); // Alapértelmezett: Medium (3)
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const [aiTopic, setAiTopic] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [topics, setTopics] = useState<Topic[]>([]);
 
   useEffect(() => {
     if (quizId) {
@@ -33,11 +39,13 @@ export const CreateQuizForm = ({ quizId, onSuccess }: Props) => {
         setTitle(q.title);
         setDescription(q.description || '');
         setMode(q.mode || 'practice');
+        setTopicId((q as any).topic_id ?? null);
       }).catch(console.error);
       
       // Kérdések betöltése
       api<any[]>(`/api/quizzes/${quizId}/questions`).then(qs => {
         const mapped = qs.map(q => ({
+            id: q.id,
             prompt: q.prompt,
             options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
             correct_index: q.correct_index,
@@ -48,6 +56,18 @@ export const CreateQuizForm = ({ quizId, onSuccess }: Props) => {
       }).catch(console.error).finally(() => setLoading(false));
     }
   }, [quizId]);
+
+  useEffect(() => {
+    const loadTopics = async () => {
+      try {
+        const data = await getTopics();
+        setTopics(data);
+      } catch {
+        setTopics([]);
+      }
+    };
+    loadTopics();
+  }, []);
 
   const getQuestionFromInput = (): CreateQuestionDto | null => {
     if (!currentPrompt.trim()) return null;
@@ -64,13 +84,32 @@ export const CreateQuizForm = ({ quizId, onSuccess }: Props) => {
     };
   };
 
-  const handleAddQuestion = () => {
+  const handleAddQuestion = async () => {
     const q = getQuestionFromInput();
     if (!q) {
       setError("Legalább a kérdést és 2 választ töltsd ki!");
       return;
     }
-    setQuestions([...questions, q]);
+    if (editingIndex !== null) {
+      const current = questions[editingIndex];
+      if (current?.id && quizId) {
+        try {
+          const updated = await updateQuestion(quizId, current.id, q);
+          const copy = [...questions];
+          copy[editingIndex] = { ...q, id: updated.id };
+          setQuestions(copy);
+        } catch (err: any) {
+          setError(err.message || "Nem sikerült frissíteni a kérdést");
+          return;
+        }
+      } else {
+        const copy = [...questions];
+        copy[editingIndex] = { ...q };
+        setQuestions(copy);
+      }
+    } else {
+      setQuestions([...questions, q]);
+    }
     
     // Mezők ürítése
     setCurrentPrompt('');
@@ -78,6 +117,8 @@ export const CreateQuizForm = ({ quizId, onSuccess }: Props) => {
     setCorrectIndex(0);
     setExplanation('');
     setDifficulty(3);
+    setEditingQuestionId(null);
+    setEditingIndex(null);
     setError(null);
   };
 
@@ -87,21 +128,26 @@ export const CreateQuizForm = ({ quizId, onSuccess }: Props) => {
     try {
       const allQuestions = [...questions];
       const pending = getQuestionFromInput();
+      if (editingIndex !== null && pending) {
+        throw new Error("Mentsd el a szerkesztett kérdést a listába, mielőtt véglegesítesz!");
+      }
       if (pending) allQuestions.push(pending);
 
       if (allQuestions.length === 0) throw new Error("Adj hozzá legalább egy kérdést!");
 
       let id = quizId;
       if (quizId) {
-        await updateQuiz(quizId, { title, description, mode });
+        await updateQuiz(quizId, { title, description, mode, topic_id: topicId ?? undefined });
       } else {
-        const newQuiz = await createQuiz({ title, description, mode });
+        const newQuiz = await createQuiz({ title, description, mode, topic_id: topicId ?? undefined });
         id = newQuiz.id;
       }
 
-      // Kérdések mentése (egyszerűsített verzió, a backend-től függően lehet tömeges is)
+      // Új kérdések mentése (csak amelyeknek nincs id)
       for (const q of allQuestions) {
-        await createQuestion(id!, q);
+        if (!("id" in q) || !q.id) {
+          await createQuestion(id!, q);
+        }
       }
 
       onSuccess();
@@ -112,73 +158,209 @@ export const CreateQuizForm = ({ quizId, onSuccess }: Props) => {
     }
   };
 
+  const pendingQuestion = getQuestionFromInput();
+  const totalQuestions = questions.length + (pendingQuestion ? 1 : 0);
+  const canProceedBasics = title.trim().length > 0;
+  const canProceedQuestions = totalQuestions > 0 && editingIndex === null;
+
   return (
     <form onSubmit={handleSubmit} className="create-quiz-form">
       {error && <div className="error-message">{error}</div>}
       
-      <div className="card section">
-        <h3>Alapadatok</h3>
-        <div className="input-group">
-          <label>Kvíz címe</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} required />
-        </div>
-        
-        <div className="input-group">
-          <label>Mód</label>
-          <select value={mode} onChange={e => setMode(e.target.value as any)}>
-            <option value="practice">Gyakorlás</option>
-            <option value="assessment">Vizsga</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="card section question-builder">
-        <h3>Új kérdés hozzáadása</h3>
-        <input 
-          className="prompt-input"
-          placeholder="Kérdés szövege..." 
-          value={currentPrompt} 
-          onChange={e => setCurrentPrompt(e.target.value)} 
-        />
-
-        <div className="options-grid">
-          {options.map((opt, idx) => (
-            <div key={idx} className="option-row">
-              <input 
-                type="radio" 
-                checked={correctIndex === idx} 
-                onChange={() => setCorrectIndex(idx)} 
-              />
-              <input 
-                value={opt} 
-                onChange={e => {
-                  const newOpts = [...options];
-                  newOpts[idx] = e.target.value;
-                  setOptions(newOpts);
-                }} 
-                placeholder={`Válasz ${idx + 1}`}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="difficulty-slider">
-          <label>Nehézség: <strong>{difficulty}</strong></label>
-          <input 
-            type="range" min="1" max="5" 
-            value={difficulty} 
-            onChange={e => setDifficulty(Number(e.target.value))} 
-          />
-        </div>
-
-        <button type="button" onClick={handleAddQuestion} className="btn-add">
-          Kérdés mentése a listába
+      <div className="wizard-steps">
+        <button type="button" className={`wizard-step ${step >= 1 ? "active" : ""}`} onClick={() => setStep(1)}>
+          1. Alapadatok
+        </button>
+        <button type="button" className={`wizard-step ${step >= 2 ? "active" : ""}`} onClick={() => step >= 2 && setStep(2)}>
+          2. Kérdések
+        </button>
+        <button type="button" className={`wizard-step ${step >= 3 ? "active" : ""}`} onClick={() => step >= 3 && setStep(3)}>
+          3. Áttekintés
         </button>
       </div>
 
-      <button type="submit" className="btn-submit" disabled={loading}>
-        {loading ? 'Mentés...' : 'Kvíz véglegesítése'}
-      </button>
+      {step === 1 && (
+        <div className="card section">
+          <h3>Alapadatok</h3>
+          <div className="input-group">
+            <label>Kvíz címe</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} required />
+          </div>
+          <div className="input-group">
+            <label>Leírás</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} />
+          </div>
+          <div className="input-group">
+            <label>Mód</label>
+            <select value={mode} onChange={e => setMode(e.target.value as any)}>
+              <option value="practice">Gyakorlás</option>
+              <option value="assessment">Vizsga</option>
+            </select>
+          </div>
+          <div className="input-group">
+            <label>Téma</label>
+            <select value={topicId ?? ""} onChange={(e) => setTopicId(e.target.value || null)}>
+              <option value="">Nincs téma</option>
+              {topics.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <>
+          <div className="card section question-builder">
+            <h3>{editingQuestionId ? "Kérdés szerkesztése" : "Új kérdés hozzáadása"}</h3>
+            <input 
+              className="prompt-input"
+              placeholder="Kérdés szövege..." 
+              value={currentPrompt} 
+              onChange={e => setCurrentPrompt(e.target.value)} 
+            />
+
+            <div className="options-grid">
+              {options.map((opt, idx) => (
+                <div key={idx} className="option-row">
+                  <input 
+                    type="radio" 
+                    checked={correctIndex === idx} 
+                    onChange={() => setCorrectIndex(idx)} 
+                  />
+                  <input 
+                    value={opt} 
+                    onChange={e => {
+                      const newOpts = [...options];
+                      newOpts[idx] = e.target.value;
+                      setOptions(newOpts);
+                    }} 
+                    placeholder={`Válasz ${idx + 1}`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="difficulty-slider">
+              <label>Nehézség: <strong>{difficulty}</strong></label>
+              <input 
+                type="range" min="1" max="5" 
+                value={difficulty} 
+                onChange={e => setDifficulty(Number(e.target.value))} 
+              />
+            </div>
+
+            <div className="question-actions">
+              <button type="button" onClick={handleAddQuestion} className="btn-add">
+                {editingQuestionId ? "Mentés" : "Kérdés mentése a listába"}
+              </button>
+              {editingQuestionId && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setEditingQuestionId(null);
+                    setEditingIndex(null);
+                    setCurrentPrompt('');
+                    setOptions(['', '', '', '']);
+                    setCorrectIndex(0);
+                    setExplanation('');
+                    setDifficulty(3);
+                  }}
+                >
+                  Mégse
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="card section">
+            <h3>Mentett kérdések</h3>
+            {questions.length === 0 && <div className="empty-subtle">Még nincs mentett kérdés.</div>}
+            {questions.map((q, idx) => (
+              <div key={q.id ?? idx} className="question-list-item">
+                <div>
+                  <div className="question-title">{q.prompt}</div>
+                  <div className="question-meta">Válaszok: {q.options.length} · Helyes: {q.correct_index + 1}</div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setEditingQuestionId(q.id ?? null);
+                    setEditingIndex(idx);
+                    setCurrentPrompt(q.prompt);
+                    setOptions([...q.options, '', '', '', ''].slice(0, Math.max(4, q.options.length)));
+                    setCorrectIndex(q.correct_index);
+                    setExplanation(q.explanation ?? '');
+                    setDifficulty(q.difficulty ?? 3);
+                  }}
+                >
+                  Szerkesztés
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {step === 3 && (
+        <div className="card section">
+          <h3>Áttekintés</h3>
+          <div className="summary-grid">
+            <div className="summary-item">
+              <div className="summary-label">Cím</div>
+              <div className="summary-value">{title || "—"}</div>
+            </div>
+            <div className="summary-item">
+              <div className="summary-label">Mód</div>
+              <div className="summary-value">{mode === "assessment" ? "Vizsga" : "Gyakorlás"}</div>
+            </div>
+            <div className="summary-item">
+              <div className="summary-label">Kérdések</div>
+              <div className="summary-value">{totalQuestions}</div>
+            </div>
+          </div>
+          <div className="summary-list">
+            {questions.slice(0, 5).map((q, idx) => (
+              <div key={`${q.prompt}-${idx}`} className="summary-row">{idx + 1}. {q.prompt}</div>
+            ))}
+            {questions.length > 5 && (
+              <div className="summary-row muted">+ {questions.length - 5} további kérdés</div>
+            )}
+          </div>
+          {pendingQuestion && (
+            <div className="summary-warning">
+              Van egy még el nem mentett kérdésed. Mentsd el a listába, mielőtt véglegesítesz.
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="wizard-actions">
+        {step > 1 && (
+          <button type="button" className="btn btn-secondary" onClick={() => setStep(step - 1)}>
+            ← Vissza
+          </button>
+        )}
+        {step < 3 && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setStep(step + 1)}
+            disabled={(step === 1 && !canProceedBasics) || (step === 2 && !canProceedQuestions)}
+          >
+            Következő →
+          </button>
+        )}
+        {step === 3 && (
+          <button type="submit" className="btn-submit" disabled={loading || !!pendingQuestion}>
+            {loading ? 'Mentés...' : 'Kvíz véglegesítése'}
+          </button>
+        )}
+      </div>
     </form>
   );
 };

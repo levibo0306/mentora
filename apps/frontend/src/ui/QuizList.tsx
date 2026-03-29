@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getQuizzes, Quiz, deleteQuiz } from "../api/quizzes";
+import { getTopics, Topic } from "../api/topics";
 import { ShareModal } from "./ShareModal";
 
 interface Props {
   onEdit: (id: string) => void;
+  topicId?: string | null;
+  hideFilter?: boolean;
 }
 
 type DiffBadge = { label: string; class: string };
@@ -24,9 +27,11 @@ function getDifficultyStyle(avgDiff: number | string | null | undefined): DiffBa
   return levels[rounded] ?? levels[3];
 }
 
-export const QuizList = ({ onEdit }: Props) => {
+export const QuizList = ({ onEdit, topicId: fixedTopicId = null, hideFilter = false }: Props) => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [topicId, setTopicId] = useState<string | null>(fixedTopicId);
   
   // Share modal state
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -35,7 +40,7 @@ export const QuizList = ({ onEdit }: Props) => {
   const fetchList = async () => {
     try {
       setLoading(true);
-      const data = await getQuizzes();
+      const data = await getQuizzes(topicId);
       setQuizzes(data);
     } catch (error) {
       console.error("Nem sikerült betölteni a kvízeket", error);
@@ -45,7 +50,25 @@ export const QuizList = ({ onEdit }: Props) => {
   };
 
   useEffect(() => {
+    if (fixedTopicId !== null) {
+      setTopicId(fixedTopicId);
+    }
+  }, [fixedTopicId]);
+
+  useEffect(() => {
     fetchList();
+  }, [topicId, fixedTopicId]);
+
+  useEffect(() => {
+    const loadTopics = async () => {
+      try {
+        const data = await getTopics();
+        setTopics(data);
+      } catch {
+        setTopics([]);
+      }
+    };
+    loadTopics();
   }, []);
 
   const handleDelete = async (id: string) => {
@@ -76,6 +99,19 @@ export const QuizList = ({ onEdit }: Props) => {
 
   return (
     <>
+      {!hideFilter && (
+        <div className="quiz-filter">
+          <label>Téma</label>
+          <select value={topicId ?? ""} onChange={(e) => setTopicId(e.target.value || null)}>
+            <option value="">Összes</option>
+            {topics.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="quiz-grid">
         {quizzes.map((quiz) => {
           const diff = getDifficultyStyle((quiz as any).avg_difficulty);

@@ -16,7 +16,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   onClose,
   sourceToken
 }) => {
-  const [shareLinks, setShareLinks] = useState<Array<{ url: string; recipient_email?: string }>>([]);
+  const [shareLinks, setShareLinks] = useState<Array<{ url: string; token: string; recipient_email?: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +46,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
       const links = response.tokens.map((t) => ({
         url: `${window.location.origin}/shared/${t.token}`,
+        token: t.token,
         recipient_email: t.recipient_email
       }));
       setShareLinks(links);
@@ -238,6 +239,18 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                     }}>
                       {link.url}
                     </div>
+                    <div style={{
+                      background: '#f8f9fa',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      fontFamily: 'monospace',
+                      fontSize: '12px',
+                      color: 'var(--dark)',
+                      marginBottom: '10px',
+                      border: '1px dashed #c8e6c9'
+                    }}>
+                      Kód: {link.token}
+                    </div>
                     <button
                       onClick={() => copyToClipboard(link.url)}
                       className="btn btn-primary"
@@ -251,6 +264,18 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                       }}
                     >
                       {copied ? '✓ Másolva!' : '📋 Link Másolása'}
+                    </button>
+                    <button
+                      onClick={() => copyToClipboard(link.token)}
+                      className="btn btn-secondary"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        fontSize: '13px',
+                        marginTop: '8px'
+                      }}
+                    >
+                      🔢 Kód másolása
                     </button>
                   </div>
                 ))}
@@ -305,9 +330,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 color: '#e65100',
                 lineHeight: '1.6'
               }}>
-                <strong>ℹ️ Fontos:</strong> Ez a link korlátlan ideig érvényes, 
-                és bárki használhatja aki rendelkezik vele. A diákok bejelentkezés 
-                nélkül is kitölthetik a kvízt.
+                <strong>ℹ️ Fontos:</strong> A link és a kód is működik. Bárki használhatja, 
+                aki megkapja. A diákok bejelentkezés nélkül is kitölthetik a kvízt.
               </div>
             </div>
           )}

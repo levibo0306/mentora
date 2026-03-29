@@ -96,6 +96,49 @@ CREATE TABLE public.questions (
     CONSTRAINT questions_difficulty_check CHECK (((difficulty >= 1) AND (difficulty <= 5)))
 );
 
+--
+-- Name: flashcards; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.flashcards (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    owner_id uuid NOT NULL,
+    topic_id uuid,
+    front text NOT NULL,
+    back text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+--
+-- Name: topics; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.topics (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    owner_id uuid NOT NULL,
+    name text NOT NULL,
+    description text,
+    subject text,
+    grade text,
+    color text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+--
+-- Name: topic_shares; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.topic_shares (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    topic_id uuid NOT NULL,
+    token text NOT NULL,
+    recipient_id uuid,
+    shared_by uuid,
+    allow_reshare boolean DEFAULT false NOT NULL,
+    parent_share_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 
 --
 -- Name: quiz_shares; Type: TABLE; Schema: public; Owner: -
@@ -156,6 +199,7 @@ CREATE TABLE public.quizzes (
     title text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     owner_id uuid,
+    topic_id uuid,
     description text,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     mode text DEFAULT 'practice'::text,
@@ -170,6 +214,7 @@ CREATE TABLE public.quizzes (
 
 CREATE TABLE public.users (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    username text NOT NULL,
     email text NOT NULL,
     password_hash text NOT NULL,
     role text NOT NULL,
@@ -195,6 +240,27 @@ ALTER TABLE ONLY public.attempts
 ALTER TABLE ONLY public.questions
     ADD CONSTRAINT questions_pkey PRIMARY KEY (id);
 
+--
+-- Name: flashcards flashcards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.flashcards
+    ADD CONSTRAINT flashcards_pkey PRIMARY KEY (id);
+
+--
+-- Name: topics topics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_pkey PRIMARY KEY (id);
+
+--
+-- Name: topic_shares topic_shares_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.topic_shares
+    ADD CONSTRAINT topic_shares_pkey PRIMARY KEY (id);
+
 
 --
 -- Name: quiz_shares quiz_shares_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -211,6 +277,13 @@ ALTER TABLE ONLY public.quiz_shares
 ALTER TABLE ONLY public.quiz_shares
     ADD CONSTRAINT quiz_shares_token_key UNIQUE (token);
 
+--
+-- Name: topic_shares topic_shares_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.topic_shares
+    ADD CONSTRAINT topic_shares_token_key UNIQUE (token);
+
 
 --
 -- Name: quizzes quizzes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -226,6 +299,13 @@ ALTER TABLE ONLY public.quizzes
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_email_key UNIQUE (email);
+
+--
+-- Name: users users_username_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_username_key UNIQUE (username);
 
 
 --
@@ -294,6 +374,62 @@ ALTER TABLE ONLY public.quiz_shares
 
 ALTER TABLE ONLY public.quiz_shares
     ADD CONSTRAINT quiz_shares_parent_share_id_fkey FOREIGN KEY (parent_share_id) REFERENCES public.quiz_shares(id) ON DELETE SET NULL;
+
+--
+-- Name: flashcards flashcards_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.flashcards
+    ADD CONSTRAINT flashcards_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+--
+-- Name: quizzes quizzes_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quizzes
+    ADD CONSTRAINT quizzes_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.topics(id) ON DELETE SET NULL;
+
+--
+-- Name: flashcards flashcards_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.flashcards
+    ADD CONSTRAINT flashcards_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.topics(id) ON DELETE SET NULL;
+
+--
+-- Name: topics topics_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+--
+-- Name: topic_shares topic_shares_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.topic_shares
+    ADD CONSTRAINT topic_shares_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.topics(id) ON DELETE CASCADE;
+
+--
+-- Name: topic_shares topic_shares_recipient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.topic_shares
+    ADD CONSTRAINT topic_shares_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+--
+-- Name: topic_shares topic_shares_shared_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.topic_shares
+    ADD CONSTRAINT topic_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+--
+-- Name: topic_shares topic_shares_parent_share_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.topic_shares
+    ADD CONSTRAINT topic_shares_parent_share_id_fkey FOREIGN KEY (parent_share_id) REFERENCES public.topic_shares(id) ON DELETE SET NULL;
 
 --
 -- Name: daily_missions daily_missions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

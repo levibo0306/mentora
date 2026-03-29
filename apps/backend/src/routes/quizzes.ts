@@ -18,13 +18,51 @@ const uuidParam = z.object({ id: z.string().uuid() });
 
 quizzesRouter.get("/", requireAuth, async (req: any, res) => {
   const userId = req.user?.sub;
+  const role = req.user?.role;
+  const topicId = typeof req.query.topic_id === "string" ? req.query.topic_id : null;
 
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
+    if (topicId) {
+      if (role === "teacher") {
+        const r = await pool.query(
+          `SELECT 
+              q.id, q.title, q.description, q.mode, q.created_at, q.updated_at, q.topic_id,
+              (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id)::int as question_count,
+              (SELECT COUNT(*) FROM attempts WHERE quiz_id = q.id)::int as total_attempts,
+              (SELECT AVG(difficulty) FROM questions WHERE quiz_id = q.id)::float as avg_difficulty
+           FROM quizzes q
+           WHERE q.owner_id = $1 AND q.topic_id = $2
+           ORDER BY q.created_at DESC`,
+          [userId, topicId]
+        );
+        return res.json(r.rows);
+      }
+
+      const allowed = await pool.query(
+        "select 1 from topic_shares where topic_id=$1 and recipient_id=$2",
+        [topicId, userId]
+      );
+      if (allowed.rowCount === 0) return res.status(403).json({ error: "Not allowed" });
+
+      const r = await pool.query(
+        `SELECT 
+            q.id, q.title, q.description, q.mode, q.created_at, q.updated_at, q.topic_id,
+            (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id)::int as question_count,
+            (SELECT COUNT(*) FROM attempts WHERE quiz_id = q.id)::int as total_attempts,
+            (SELECT AVG(difficulty) FROM questions WHERE quiz_id = q.id)::float as avg_difficulty
+         FROM quizzes q
+         WHERE q.topic_id = $1
+         ORDER BY q.created_at DESC`,
+        [topicId]
+      );
+      return res.json(r.rows);
+    }
+
     const r = await pool.query(
       `SELECT 
-          q.id, q.title, q.description, q.mode, q.created_at, q.updated_at,
+          q.id, q.title, q.description, q.mode, q.created_at, q.updated_at, q.topic_id,
           (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id)::int as question_count,
           (SELECT COUNT(*) FROM attempts WHERE quiz_id = q.id)::int as total_attempts,
           (SELECT AVG(difficulty) FROM questions WHERE quiz_id = q.id)::float as avg_difficulty
@@ -51,8 +89,8 @@ quizzesRouter.get("/shared-with-me", requireAuth, async (req: any, res) => {
           q.id, q.title, q.description, q.mode,
           s.token, s.created_at as shared_at,
           s.allow_reshare,
-          owner.email as owner_email,
-          sharer.email as shared_by_email,
+          COALESCE(owner.username, owner.email) as owner_display,
+          COALESCE(sharer.username, sharer.email) as shared_by_display,
           (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id)::int as question_count
        FROM quiz_shares s
        JOIN quizzes q ON q.id = s.quiz_id
@@ -152,7 +190,7 @@ quizzesRouter.get("/:id", requireAuth, async (req: any, res) => {
 
   try {
     const r = await pool.query(
-      `SELECT id, title, description, mode, owner_id, created_at, updated_at
+      `SELECT id, title, description, mode, owner_id, topic_id, created_at, updated_at
        FROM quizzes
        WHERE id=$1`,
       [id]
@@ -170,20 +208,21 @@ const CreateQuiz = z.object({
   title: z.string().min(1).max(120),
   description: z.string().max(500).optional(),
   mode: z.enum(["practice", "assessment"]).optional(),
+  topic_id: z.string().uuid().optional(),
 });
 
 quizzesRouter.post("/", requireAuth, async (req: any, res) => {
   const userId = req.user?.sub;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { title, description, mode } = CreateQuiz.parse(req.body);
+  const { title, description, mode, topic_id } = CreateQuiz.parse(req.body);
 
   try {
     const r = await pool.query(
-      `INSERT INTO quizzes(owner_id, title, description, mode)
-       VALUES($1,$2,$3, COALESCE($4, 'practice'))
+      `INSERT INTO quizzes(owner_id, title, description, mode, topic_id)
+       VALUES($1,$2,$3, COALESCE($4, 'practice'), $5)
        RETURNING id, title, description, mode, created_at, updated_at`,
-      [userId, title.trim(), description ?? null, mode ?? null]
+      [userId, title.trim(), description ?? null, mode ?? null, topic_id ?? null]
     );
     res.status(201).json(r.rows[0]);
   } catch (err) {
@@ -205,10 +244,11 @@ quizzesRouter.put("/:id", requireAuth, async (req: any, res) => {
        SET 
          title = COALESCE($1, title),
          description = COALESCE($2, description),
-         mode = COALESCE($3, mode)
-       WHERE id=$4 AND owner_id=$5
+         mode = COALESCE($3, mode),
+         topic_id = COALESCE($4, topic_id)
+       WHERE id=$5 AND owner_id=$6
        RETURNING id, title, description, mode, created_at, updated_at`,
-      [body.title?.trim(), body.description ?? null, body.mode ?? null, id, userId]
+      [body.title?.trim(), body.description ?? null, body.mode ?? null, body.topic_id ?? null, id, userId]
     );
 
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found or not yours" });
@@ -278,6 +318,47 @@ quizzesRouter.post("/:id/questions", requireAuth, async (req: any, res) => {
     );
 
     res.status(201).json(r.rows[0]);
+  } catch (err: any) {
+    console.error("Backend Error:", err);
+    res.status(400).json({ error: err.message ?? "Bad request" });
+  }
+});
+
+quizzesRouter.put("/:id/questions/:qid", requireAuth, async (req: any, res) => {
+  const userId = req.user?.sub;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { id } = uuidParam.parse(req.params);
+  const QuestionIdSchema = z.object({ qid: z.string().uuid() });
+  const { qid } = QuestionIdSchema.parse(req.params);
+
+  try {
+    const body = QuestionSchema.parse(req.body);
+
+    const own = await pool.query(
+      "SELECT 1 FROM quizzes WHERE id=$1 AND owner_id=$2",
+      [id, userId]
+    );
+    if (own.rowCount === 0) return res.status(404).json({ error: "Quiz not found or not yours" });
+
+    const r = await pool.query(
+      `UPDATE questions
+       SET prompt=$1, options=$2::jsonb, correct_index=$3, explanation=$4, difficulty=$5
+       WHERE id=$6 AND quiz_id=$7
+       RETURNING *`,
+      [
+        body.prompt,
+        JSON.stringify(body.options),
+        body.correct_index,
+        body.explanation ?? null,
+        body.difficulty ?? 3,
+        qid,
+        id,
+      ]
+    );
+
+    if (r.rowCount === 0) return res.status(404).json({ error: "Question not found" });
+    res.json(r.rows[0]);
   } catch (err: any) {
     console.error("Backend Error:", err);
     res.status(400).json({ error: err.message ?? "Bad request" });

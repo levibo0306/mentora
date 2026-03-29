@@ -8,8 +8,8 @@ type AuthContextType = {
   isAuthenticated: boolean;
   isLoading: boolean;
   // A login/register itt email/jelszót vár!
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, role: UserRole) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => void;
 };
 
@@ -48,14 +48,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Login implementáció: API hívás -> Mentés
-  const login = async (email: string, password: string) => {
-    const data = await loginApi(email, password);
+  const login = async (identifier: string, password: string) => {
+    const data = await loginApi(identifier, password);
     persist(data.token, data.user);
   };
 
   // Register implementáció: API hívás -> Mentés
-  const register = async (email: string, password: string, role: UserRole) => {
-    const data = await registerApi(email, password, role);
+  const register = async (username: string, email: string, password: string, role: UserRole) => {
+    const data = await registerApi(username, email, password, role);
     persist(data.token, data.user);
   };
 

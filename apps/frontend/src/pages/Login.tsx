@@ -8,7 +8,9 @@ export const Login: React.FC = () => {
   const { login, register } = useAuth();
 
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [identifier, setIdentifier] = useState("");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("student");
   const [err, setErr] = useState<string | null>(null);
@@ -17,8 +19,8 @@ export const Login: React.FC = () => {
     e.preventDefault();
     setErr(null);
     try {
-      if (mode === "login") await login(email, password);
-      else await register(email, password, role);
+      if (mode === "login") await login(identifier, password);
+      else await register(username, email, password, role);
       nav("/");
     } catch (e: any) {
       setErr(e?.message ?? "Hiba történt");
@@ -67,16 +69,42 @@ export const Login: React.FC = () => {
         )}
 
         <form onSubmit={submit}>
-          <div className="input-group">
-            <label>Email cím</label>
-            <input 
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)} 
-              required 
-              type="email"
-              placeholder="pelda@email.com"
-            />
-          </div>
+          {mode === "register" && (
+            <div className="input-group">
+              <label>Felhasználónév</label>
+              <input 
+                value={username} 
+                onChange={(e) => setUsername(e.target.value)} 
+                required 
+                type="text"
+                placeholder="pl. mate_gergo"
+              />
+            </div>
+          )}
+
+          {mode === "login" ? (
+            <div className="input-group">
+              <label>Email vagy felhasználónév</label>
+              <input 
+                value={identifier} 
+                onChange={(e) => setIdentifier(e.target.value)} 
+                required 
+                type="text"
+                placeholder="email vagy username"
+              />
+            </div>
+          ) : (
+            <div className="input-group">
+              <label>Email cím</label>
+              <input 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                required 
+                type="email"
+                placeholder="pelda@email.com"
+              />
+            </div>
+          )}
 
           <div className="input-group">
             <label>Jelszó</label>

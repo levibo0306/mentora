@@ -8,6 +8,8 @@ import { authRouter } from "./routes/auth";
 import { quizzesRouter } from "./routes/quizzes";
 import { shareRouter } from "./routes/share";
 import { usersRouter } from "./routes/users";
+import { flashcardsRouter } from "./routes/flashcards";
+import { topicsRouter } from "./routes/topics";
 
 
 const app = express();
@@ -53,6 +55,8 @@ app.use("/api/auth", authRouter);
 app.use("/api/quizzes", quizzesRouter);
 app.use("/api", shareRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/flashcards", flashcardsRouter);
+app.use("/api/topics", topicsRouter);
 
 // Error handler
 app.use((err: any, _req: any, res: any, _next: any) => {

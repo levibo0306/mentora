@@ -9,8 +9,8 @@ type SharedQuiz = {
   description?: string;
   mode: 'practice' | 'assessment';
   question_count: number;
-  owner_email: string | null;
-  shared_by_email: string | null;
+  owner_display: string | null;
+  shared_by_display: string | null;
   shared_at: string;
   token: string; // Share token
   allow_reshare: boolean;
@@ -116,7 +116,7 @@ export const SharedWithMe = () => {
               fontSize: '13px',
               color: '#666'
             }}>
-              👨‍🏫 Készítette: <strong>{quiz.owner_email ?? "Ismeretlen"}</strong>
+              👨‍🏫 Készítette: <strong>{quiz.owner_display ?? "Ismeretlen"}</strong>
             </div>
             <div style={{
               marginTop: '8px',
@@ -126,7 +126,7 @@ export const SharedWithMe = () => {
               fontSize: '13px',
               color: '#666'
             }}>
-              🔗 Megosztotta: <strong>{quiz.shared_by_email ?? "Ismeretlen"}</strong>
+              🔗 Megosztotta: <strong>{quiz.shared_by_display ?? "Ismeretlen"}</strong>
             </div>
           </div>
 
